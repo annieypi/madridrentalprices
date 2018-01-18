@@ -1,0 +1,86 @@
+---
+title: "Multiple Regression - Predicting Rent Prices in Madrid"
+author: "Annie"
+date: "1/18/2018"
+output: html_document
+---
+
+## 1. INTRODUCTION
+The purpose of this analysis is to create a multiple regression model that uses data from Idealista, a popular real estate listing website in Spain, to predicts rental prices as accurately as possible. 
+
+## 2. LOAD LIBRARIES AND DATA
+First, we uploaded necessary libraries and the dataset. 
+```{r libraries, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(stringr)
+houses <- read.csv('Houses_for_rent_madrid.csv')
+```
+
+## 3. DATA UNDERSTANDING
+```{r exploration}
+glimpse(houses)
+```
+
+Using glimpse, we see there are 2,188 properties and 15 variables in the dataset:
+
+ * __Id__ is a unique identifier for each rental property.
+ * __Area__ indicates which of 20 Madrid districts the rental property is located in. 
+ * __Address__ is the address of the rental property.
+ * __Number__ is the street number of the rental property.
+ * __Zone__ indicates at a more granular level where the rental property is located, out of 141 zones in Madrid.
+ * __Rent__ is the listed rental price of the property.
+ * __Bedrooms__ is the number of bedrooms. 
+ * __Sq..Mt.__ is the size of the proeprty in square meters.
+ * __Floor__ is on which floor the property is located.
+ * __Outer__ indicates whether the property has an interior or exterior view.
+ * __Elevator__ indicates whether or not the property has an elevator.
+ * __Penthouse__ indicates whether the property is a penthouse.
+ * __Cottage__ indicates whether the property is a cottage.
+ * __Duplex__ indicates whether the property is a duplex.
+ * __Semi.detached__ indicates whether the property is semi-detached.
+ 
+## 4. CLEANING DATA
+
+Before beginning our analysis, we want to make sure the data is clean to work with. We begin by fixing some of the variable types. For example, Rent is incorrectly stored as a factor variable, so we change this to an integer. 
+```{r}
+houses$Rent = as.numeric(gsub(",", "", houses$Rent))
+```
+
+
+Next, we look for any missing values, and we see that there are missing or incorrect values for 6 variables: Number, Zone, Bedrooms, Floor, Outer, and Elevator. 
+```{r}
+sapply(houses, function(x) sum(is.na(x)))
+sapply(houses, function(x) sum((x=='')))
+
+```
+
+There are over 1400 missing values for Number, but this variable is basically meaningless for predicting rental prices, so I decide to drop this column. 
+```{r}
+houses = subset(houses, select = -c(Number))
+```
+
+However, bedrooms could be an important variable for rental prices, so I inspect where values are NA. I see that many of these values have "estudio" in the address. In this case, Bedrooms should technically be 0, but because studios are different from regular apartments and often demand a premium in the rental market, I also create a new binary variable called Studio to track these properties.
+```{r}
+houses %>% 
+  filter(is.na(Bedrooms))
+
+houses$Bedrooms[is.na(houses$Bedrooms) & str_detect(houses$Address, "Estudio")] <- 0
+
+houses = houses %>% 
+  mutate(Studio = ifelse(str_detect(Address, "Estudio"), 1, 0))
+```
+
+Afterwards, I check the variable again and see there are still 7 N/A values. Their Addresses indicate that there are two marked "Dúplex" and five marked "Au0081tico." The latter appears to be an issue with an unrecognized symbol in certain "Atico" values when imported into the dataset, so I use gsub to update these values. 
+```{r}
+houses %>% 
+  filter(is.na(Bedrooms))
+
+gsub("\u0081", "", houses$Address)
+```
+
+
+```{r}
+ggplot(houses, aes(x=Rent)) + geom_histogram(color=I("gray"))
+```
